@@ -8,20 +8,31 @@ export interface AIMessage {
   content: string;
   type: MessageType;
   timestamp: Date;
-  audioUrl?: string; // For voice messages
+  audioUrl?: string;
+}
+
+// AI provider type
+export type AIProvider = 'anthropic' | 'openai';
+
+// AI configuration
+export interface AIConfig {
+  provider: AIProvider;
+  apiKey: string;
+  baseURL?: string;
+  model?: string;
 }
 
 // AI chat request
 export interface ChatRequest {
   messages: AIMessage[];
-  useAnthropic?: boolean; // true = Anthropic, false = OpenAI
+  config: AIConfig;
   systemPrompt?: string;
 }
 
 // AI chat response
 export interface ChatResponse {
   message: string;
-  audioUrl?: string; // TTS audio if requested
+  audioUrl?: string;
   suggestedActions?: SuggestedAction[];
 }
 
@@ -31,7 +42,7 @@ export type ActionType = 'create_order' | 'buy_token' | 'view_token' | 'cancel_o
 export interface SuggestedAction {
   type: ActionType;
   label: string;
-  data: any; // Action-specific data
+  data: any;
 }
 
 // Voice processing
@@ -43,5 +54,5 @@ export interface VoiceTranscription {
 
 export interface TTSRequest {
   text: string;
-  voice?: string; // Voice ID for TTS
+  voice?: string;
 }

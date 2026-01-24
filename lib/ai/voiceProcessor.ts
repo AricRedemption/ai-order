@@ -1,29 +1,43 @@
-import { getOpenAIClient } from './openai';
+import OpenAI from 'openai';
 import { WHISPER_MODEL, TTS_MODEL, TTS_VOICE } from '@/config/constants';
-import type { VoiceTranscription, TTSRequest } from '@/types/ai';
+import type { VoiceTranscription, TTSRequest, AIConfig } from '@/types/ai';
 
-/**
- * Transcribe audio to text using OpenAI Whisper
- */
+const voiceClients = new Map<string, OpenAI>();
+
+function getVoiceClient(config: AIConfig): OpenAI {
+  const cacheKey = `${config.apiKey}:${config.baseURL || 'default'}`;
+  
+  if (!voiceClients.has(cacheKey)) {
+    const clientOptions: any = { apiKey: config.apiKey };
+    
+    if (config.baseURL) {
+      clientOptions.baseURL = config.baseURL;
+    }
+    
+    voiceClients.set(cacheKey, new OpenAI(clientOptions));
+  }
+  
+  return voiceClients.get(cacheKey)!;
+}
+
 export async function transcribeAudio(
   audioBlob: Blob,
-  apiKey?: string
+  config: AIConfig
 ): Promise<VoiceTranscription> {
   try {
-    const client = getOpenAIClient(apiKey);
+    const client = getVoiceClient(config);
 
-    // Convert blob to File object (required by OpenAI SDK)
     const audioFile = new File([audioBlob], 'audio.webm', { type: audioBlob.type });
 
     const transcription = await client.audio.transcriptions.create({
       file: audioFile,
       model: WHISPER_MODEL,
-      language: 'en', // Can be made dynamic
+      language: 'zh',
     });
 
     return {
       text: transcription.text,
-      language: 'en',
+      language: 'zh',
     };
   } catch (error) {
     console.error('[Voice] Transcription error:', error);
@@ -31,15 +45,12 @@ export async function transcribeAudio(
   }
 }
 
-/**
- * Convert text to speech using OpenAI TTS
- */
 export async function textToSpeech(
   request: TTSRequest,
-  apiKey?: string
+  config: AIConfig
 ): Promise<Blob> {
   try {
-    const client = getOpenAIClient(apiKey);
+    const client = getVoiceClient(config);
 
     const response = await client.audio.speech.create({
       model: TTS_MODEL,
@@ -47,7 +58,6 @@ export async function textToSpeech(
       input: request.text,
     });
 
-    // Convert response to blob
     const arrayBuffer = await response.arrayBuffer();
     return new Blob([arrayBuffer], { type: 'audio/mpeg' });
   } catch (error) {
@@ -56,9 +66,6 @@ export async function textToSpeech(
   }
 }
 
-/**
- * Client-side: Record audio from microphone
- */
 export class AudioRecorder {
   private mediaRecorder: MediaRecorder | null = null;
   private audioChunks: Blob[] = [];

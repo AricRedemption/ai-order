@@ -1,14 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { transcribeAudio, textToSpeech } from '@/lib/ai/voiceProcessor';
+import type { AIConfig } from '@/types/ai';
 
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const action = formData.get('action') as string;
-    const apiKey = request.headers.get('x-api-key') || undefined;
+    const headerConfig = request.headers.get('x-api-config');
+    
+    if (!headerConfig) {
+      return NextResponse.json(
+        { success: false, error: 'AI configuration is required' },
+        { status: 400 }
+      );
+    }
+    
+    const config: AIConfig = JSON.parse(headerConfig);
 
     if (action === 'transcribe') {
-      // Transcribe audio to text
       const audioFile = formData.get('audio') as Blob;
       if (!audioFile) {
         return NextResponse.json(
@@ -17,7 +26,7 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const transcription = await transcribeAudio(audioFile, apiKey);
+      const transcription = await transcribeAudio(audioFile, config);
 
       return NextResponse.json({
         success: true,
@@ -25,7 +34,6 @@ export async function POST(request: NextRequest) {
         language: transcription.language,
       });
     } else if (action === 'tts') {
-      // Text to speech
       const text = formData.get('text') as string;
       if (!text) {
         return NextResponse.json(
@@ -34,9 +42,8 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const audioBlob = await textToSpeech({ text }, apiKey);
+      const audioBlob = await textToSpeech({ text }, config);
 
-      // Return audio as response
       return new NextResponse(audioBlob, {
         headers: {
           'Content-Type': 'audio/mpeg',

@@ -3,11 +3,12 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, BarChart3, Settings, ListOrdered } from 'lucide-react';
+import { Home, BarChart3, Settings, ListOrdered, Menu, X } from 'lucide-react';
 import { WalletConnection } from '@/components/wallet/WalletConnection';
 
 export function Header() {
   const pathname = usePathname();
+  const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
 
   const navItems = [
     { href: '/', label: 'Home', icon: Home },
@@ -19,8 +20,8 @@ export function Header() {
   return (
     <header className="border-b bg-card">
       <div className="container mx-auto px-4">
-        <div className="flex flex-col gap-3 py-3 md:flex-row md:items-center md:justify-between md:h-16">
-          <div className="flex items-center gap-4 md:gap-8 flex-wrap">
+        <div className="flex items-center justify-between py-3 md:h-16">
+          <div className="flex items-center gap-4 md:gap-8">
             <Link href="/" className="text-xl md:text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-600 bg-clip-text text-transparent">
               AI Meme Trader
             </Link>
@@ -46,10 +47,42 @@ export function Header() {
             </nav>
           </div>
 
-          <div className="flex items-center gap-2 w-full md:w-auto md:justify-end">
+          <div className="flex items-center gap-2">
             <WalletConnection />
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="md:hidden p-2 rounded-md hover:bg-accent transition-colors"
+              aria-label="Toggle menu"
+            >
+              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            </button>
           </div>
         </div>
+
+        {mobileMenuOpen && (
+          <nav className="md:hidden py-4 border-t">
+            <div className="flex flex-col gap-2">
+              {navItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = pathname === item.href;
+
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={`flex items-center gap-3 px-4 py-3 rounded-md transition-colors hover:bg-accent ${
+                      isActive ? 'bg-accent text-primary' : 'text-muted-foreground'
+                    }`}
+                  >
+                    <Icon className="w-5 h-5" />
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </div>
+          </nav>
+        )}
       </div>
     </header>
   );

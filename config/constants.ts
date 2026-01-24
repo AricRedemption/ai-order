@@ -34,7 +34,7 @@ export const WHISPER_MODEL = 'whisper-1';
 
 // Local storage keys
 export const STORAGE_KEYS = {
-  API_KEYS: 'ai-meme-trader-api-keys',
+  API_CONFIG: 'ai-meme-trader-config',
   ORDERS: 'ai-meme-trader-orders',
   CHAT_HISTORY: 'ai-meme-trader-chat',
   SETTINGS: 'ai-meme-trader-settings',

@@ -1,35 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { sendAnthropicMessage } from '@/lib/ai/anthropic';
-import { sendOpenAIMessage } from '@/lib/ai/openai';
+import { sendAIMessage } from '@/lib/ai/client';
+import type { AIConfig } from '@/types/ai';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { messages, useAnthropic = true } = body;
+    const { messages, config } = body;
 
-    // Get API key from headers (for client-provided keys)
-    const apiKey = request.headers.get('x-api-key') || undefined;
+    // Get config from headers (for client-provided config)
+    const headerConfig = request.headers.get('x-api-config');
+    const finalConfig: AIConfig = config || (headerConfig ? JSON.parse(headerConfig) : null);
 
-    let response: string;
-
-    if (useAnthropic) {
-      // Use Anthropic Claude
-      response = await sendAnthropicMessage(
-        messages,
-        'You are a helpful AI assistant for cryptocurrency trading. Help users analyze meme coins, create conditional orders, and make informed trading decisions. Be concise and actionable.',
-        apiKey
-      );
-    } else {
-      // Use OpenAI GPT
-      const openaiMessages = [
+    if (!finalConfig || !finalConfig.apiKey) {
+      return NextResponse.json(
         {
-          role: 'system' as const,
-          content: 'You are a helpful AI assistant for cryptocurrency trading. Help users analyze meme coins, create conditional orders, and make informed trading decisions. Be concise and actionable.',
+          success: false,
+          error: 'AI configuration is required. Please configure your API settings.',
         },
-        ...messages,
-      ];
-      response = await sendOpenAIMessage(openaiMessages, apiKey);
+        { status: 400 }
+      );
     }
+
+    const systemPrompt = 'You are a helpful AI assistant for cryptocurrency trading. Help users analyze meme coins, create conditional orders, and make informed trading decisions. Be concise and actionable.';
+
+    const response = await sendAIMessage(messages, finalConfig, systemPrompt);
 
     return NextResponse.json({
       success: true,

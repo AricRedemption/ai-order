@@ -52,22 +52,25 @@ export function ChatInterface({ onOrderCreated }: ChatInterfaceProps) {
     setIsProcessing(true);
 
     try {
-      // Get API keys from localStorage
-      const storedKeys = localStorage.getItem('ai-meme-trader-api-keys');
-      const apiKeys = storedKeys ? JSON.parse(storedKeys) : {};
+      const storedConfig = localStorage.getItem('ai-meme-trader-config');
+      
+      if (!storedConfig) {
+        throw new Error('请先在设置页面配置 AI 模型');
+      }
+
+      const config = JSON.parse(storedConfig);
 
       const response = await fetch('/api/ai/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': apiKeys.anthropic || apiKeys.openai || '',
         },
         body: JSON.stringify({
           messages: messages
             .filter(m => m.role !== 'system')
             .map(m => ({ role: m.role, content: m.content }))
             .concat([{ role: 'user', content: input }]),
-          useAnthropic: !!apiKeys.anthropic,
+          config,
         }),
       });
 
@@ -83,7 +86,6 @@ export function ChatInterface({ onOrderCreated }: ChatInterfaceProps) {
         };
         setMessages(prev => [...prev, aiMessage]);
 
-        // Check if AI suggested creating an order
         if (data.message.includes('订单') || data.message.includes('order')) {
           // Could trigger order creation here
         }
@@ -94,7 +96,7 @@ export function ChatInterface({ onOrderCreated }: ChatInterfaceProps) {
       const errorMessage: AIMessage = {
         id: Date.now().toString(),
         role: 'assistant',
-        content: `抱歉，发生错误：${error instanceof Error ? error.message : '未知错误'}。请检查 API 密钥配置。`,
+        content: `抱歉，发生错误：${error instanceof Error ? error.message : '未知错误'}。请检查 AI 配置。`,
         type: 'text',
         timestamp: new Date(),
       };
@@ -145,10 +147,16 @@ export function ChatInterface({ onOrderCreated }: ChatInterfaceProps) {
     setIsProcessing(true);
 
     try {
-      const storedKeys = localStorage.getItem('ai-meme-trader-api-keys');
-      const apiKeys = storedKeys ? JSON.parse(storedKeys) : {};
+      const storedConfig = localStorage.getItem('ai-meme-trader-config');
+      
+      if (!storedConfig) {
+        alert('请先在设置页面配置 AI 模型');
+        setIsProcessing(false);
+        return;
+      }
+      
+      const config = JSON.parse(storedConfig);
 
-      // Transcribe audio
       const formData = new FormData();
       formData.append('audio', audioBlob);
       formData.append('action', 'transcribe');
@@ -156,7 +164,7 @@ export function ChatInterface({ onOrderCreated }: ChatInterfaceProps) {
       const transcribeResponse = await fetch('/api/ai/voice', {
         method: 'POST',
         headers: {
-          'x-api-key': apiKeys.openai || '',
+          'x-api-config': JSON.stringify(config),
         },
         body: formData,
       });
@@ -166,7 +174,6 @@ export function ChatInterface({ onOrderCreated }: ChatInterfaceProps) {
       if (transcribeData.success) {
         const transcribedText = transcribeData.text;
 
-        // Add user message
         const userMessage: AIMessage = {
           id: Date.now().toString(),
           role: 'user',
@@ -176,19 +183,17 @@ export function ChatInterface({ onOrderCreated }: ChatInterfaceProps) {
         };
         setMessages(prev => [...prev, userMessage]);
 
-        // Get AI response
         const chatResponse = await fetch('/api/ai/chat', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'x-api-key': apiKeys.anthropic || apiKeys.openai || '',
           },
           body: JSON.stringify({
             messages: [...messages, userMessage].map(m => ({
               role: m.role,
               content: m.content,
             })),
-            useAnthropic: !!apiKeys.anthropic,
+            config,
           }),
         });
 
