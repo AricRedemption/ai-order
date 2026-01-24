@@ -5,24 +5,24 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 text-white">
       {/* Hero Section */}
-      <div className="container mx-auto px-4 py-16">
+      <div className="container mx-auto px-4 py-12 md:py-16">
         <div className="text-center max-w-4xl mx-auto">
-          <h1 className="text-6xl font-bold mb-6 bg-gradient-to-r from-blue-400 to-purple-600 bg-clip-text text-transparent">
+          <h1 className="text-4xl md:text-6xl font-bold mb-6 bg-gradient-to-r from-blue-400 to-purple-600 bg-clip-text text-transparent">
             AI Meme Trader
           </h1>
-          <p className="text-2xl text-gray-300 mb-8">
+          <p className="text-xl md:text-2xl text-gray-300 mb-8">
             Trade meme coins with AI-powered voice commands and smart conditional orders
           </p>
-          <div className="flex gap-4 justify-center">
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
               href="/dashboard"
-              className="px-8 py-4 bg-blue-600 hover:bg-blue-700 rounded-lg font-semibold flex items-center gap-2 transition-colors"
+              className="px-8 py-4 bg-blue-600 hover:bg-blue-700 rounded-lg font-semibold flex items-center justify-center gap-2 transition-colors"
             >
               Launch App <ArrowRight className="w-5 h-5" />
             </Link>
             <Link
               href="/settings"
-              className="px-8 py-4 bg-gray-700 hover:bg-gray-600 rounded-lg font-semibold transition-colors"
+              className="px-8 py-4 bg-gray-700 hover:bg-gray-600 rounded-lg font-semibold transition-colors flex items-center justify-center"
             >
               Configure API Keys
             </Link>
@@ -30,7 +30,7 @@ export default function HomePage() {
         </div>
 
         {/* Features Grid */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mt-20">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mt-12 md:mt-20">
           <FeatureCard
             icon={<Mic className="w-8 h-8" />}
             title="Voice Commands"
@@ -54,16 +54,16 @@ export default function HomePage() {
         </div>
 
         {/* Stats */}
-        <div className="grid md:grid-cols-3 gap-8 mt-20 text-center">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 mt-12 md:mt-20 text-center">
           <StatCard value="60+" label="Meme Coins Tracked" />
           <StatCard value="2" label="Chains Supported" />
           <StatCard value="4" label="Condition Types" />
         </div>
 
         {/* How It Works */}
-        <div className="mt-20">
-          <h2 className="text-4xl font-bold text-center mb-12">How It Works</h2>
-          <div className="grid md:grid-cols-3 gap-8">
+        <div className="mt-12 md:mt-20">
+          <h2 className="text-3xl md:text-4xl font-bold text-center mb-8 md:mb-12">How It Works</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <StepCard
               number="1"
               title="Configure APIs"
@@ -84,7 +84,7 @@ export default function HomePage() {
       </div>
 
       {/* Footer */}
-      <footer className="border-t border-gray-800 mt-20 py-8">
+      <footer className="border-t border-gray-800 mt-12 md:mt-20 py-8">
         <div className="container mx-auto px-4 text-center text-gray-400">
           <p>AI Meme Trader - Educational purposes only. Trade at your own risk.</p>
         </div>

@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, BarChart3, Settings, ListOrdered, Menu, X } from 'lucide-react';
+import { Home, BarChart3, Settings, ListOrdered, Menu, X, Bot, TrendingUp } from 'lucide-react';
 import { WalletConnection } from '@/components/wallet/WalletConnection';
 
 export function Header() {
@@ -12,7 +12,8 @@ export function Header() {
 
   const navItems = [
     { href: '/', label: 'Home', icon: Home },
-    { href: '/dashboard', label: 'Dashboard', icon: BarChart3 },
+    { href: '/dashboard/assistant', label: 'AI Assistant', icon: Bot },
+    { href: '/dashboard/memes', label: 'Hot Memes', icon: TrendingUp },
     { href: '/dashboard/orders', label: 'Orders', icon: ListOrdered },
     { href: '/settings', label: 'Settings', icon: Settings },
   ];
@@ -48,7 +49,9 @@ export function Header() {
           </div>
 
           <div className="flex items-center gap-2">
-            <WalletConnection />
+            <div className="hidden md:block">
+              <WalletConnection />
+            </div>
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="md:hidden p-2 rounded-md hover:bg-accent transition-colors"
@@ -80,6 +83,11 @@ export function Header() {
                   </Link>
                 );
               })}
+              
+              <div className="border-t my-2 pt-4 px-4">
+                <p className="text-sm text-muted-foreground mb-3 font-medium">Connect Wallet</p>
+                <WalletConnection />
+              </div>
             </div>
           </nav>
         )}

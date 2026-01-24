@@ -105,186 +105,204 @@ export function ConditionalOrderForm({ token, onOrderCreated, onClose }: Conditi
 
   if (!token) {
     return (
-      <Card>
-        <CardContent className="p-6">
-          <p className="text-muted-foreground">请先选择一个代币</p>
+      <Card className="border-dashed shadow-sm">
+        <CardContent className="p-8 text-center space-y-2">
+          <div className="mx-auto w-12 h-12 bg-muted rounded-full flex items-center justify-center">
+            <Activity className="w-6 h-6 text-muted-foreground" />
+          </div>
+          <p className="text-muted-foreground font-medium">请先选择一个代币以创建订单</p>
         </CardContent>
       </Card>
     );
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <CardTitle>创建条件单</CardTitle>
-            <CardDescription>
-              {token.symbol} - 当前价格: {formatPrice(token.price)}
+    <Card className="shadow-lg border-primary/10">
+      <CardHeader className="bg-muted/30 pb-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-1">
+            <CardTitle className="flex items-center gap-2 text-xl">
+              <span>⚡</span> 创建智能条件单
+            </CardTitle>
+            <CardDescription className="flex items-center gap-2">
+              <span className="font-bold text-primary">{token.symbol}</span>
+              <span className="text-muted-foreground">•</span>
+              <span>当前价格: {formatPrice(token.price)}</span>
             </CardDescription>
           </div>
           {onClose && (
-            <Button variant="ghost" size="icon" onClick={onClose}>
-              <X className="w-4 h-4" />
+            <Button variant="ghost" size="icon" onClick={onClose} className="-mr-2 -mt-2 sm:mt-0">
+              <X className="w-5 h-5" />
             </Button>
           )}
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-8 pt-6">
         {/* Amount */}
-        <div className="space-y-2">
-          <Label htmlFor="amount">购买金额 ({token.chain === 'solana' ? 'SOL' : 'BNB'})</Label>
-          <Input
-            id="amount"
-            type="number"
-            step="0.01"
-            min="0"
-            placeholder="1.0"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-          />
+        <div className="space-y-3">
+          <Label htmlFor="amount" className="text-base font-semibold">
+            买入金额
+          </Label>
+          <div className="relative">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">
+              {token.chain === 'solana' ? 'SOL' : 'BNB'}
+            </div>
+            <Input
+              id="amount"
+              type="number"
+              step="0.01"
+              min="0"
+              placeholder="1.0"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              className="pl-12 h-12 text-lg font-medium"
+            />
+          </div>
         </div>
 
         {/* Conditions */}
         <div className="space-y-4">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <Label>触发条件</Label>
-            <Button variant="outline" size="sm" onClick={addCondition}>
+          <div className="flex items-center justify-between">
+            <Label className="text-base font-semibold flex items-center gap-2">
+              触发条件
+              <Badge variant="outline" className="font-normal text-xs">
+                {conditions.length} / 5
+              </Badge>
+            </Label>
+            <Button variant="secondary" size="sm" onClick={addCondition} disabled={conditions.length >= 5}>
               <Plus className="w-4 h-4 mr-1" />
               添加条件
             </Button>
           </div>
 
-          {conditions.map((condition, index) => (
-            <Card key={index} className="p-4">
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <Label className="text-sm">条件 {index + 1}</Label>
-                  {conditions.length > 1 && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeCondition(index)}
-                    >
-                      <X className="w-3 h-3" />
-                    </Button>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  {/* Condition Type */}
-                  <select
-                    className="col-span-1 h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    value={condition.type}
-                    onChange={(e) =>
-                      updateCondition(index, 'type', e.target.value)
-                    }
+          <div className="space-y-3">
+            {conditions.map((condition, index) => (
+              <div key={index} className="relative group bg-muted/20 p-4 rounded-xl border border-border/50 hover:border-primary/20 transition-colors">
+                {conditions.length > 1 && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-2 top-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={() => removeCondition(index)}
                   >
-                    <option value="price">价格</option>
-                    <option value="marketCap">市值</option>
-                    <option value="volume">交易量</option>
-                    <option value="time">时间</option>
-                  </select>
+                    <X className="w-3 h-3 text-muted-foreground hover:text-destructive" />
+                  </Button>
+                )}
+                
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground mb-1">
+                    <span className="bg-background px-2 py-0.5 rounded-md border text-xs">Condition {index + 1}</span>
+                  </div>
 
-                  {/* Operator */}
-                  <select
-                    className="col-span-1 h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    value={condition.operator}
-                    onChange={(e) =>
-                      updateCondition(index, 'operator', e.target.value)
-                    }
-                  >
-                    <option value=">">大于 &gt;</option>
-                    <option value="<">小于 &lt;</option>
-                    <option value=">=">大于等于 ≥</option>
-                    <option value="<=">小于等于 ≤</option>
-                    <option value="=">=等于 =</option>
-                  </select>
+                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                    {/* Condition Type */}
+                    <div className="sm:col-span-4">
+                      <select
+                        className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                        value={condition.type}
+                        onChange={(e) => updateCondition(index, 'type', e.target.value)}
+                      >
+                        <option value="price">🏷️ 价格 Price</option>
+                        <option value="marketCap">📊 市值 Market Cap</option>
+                        <option value="volume">📈 交易量 Volume</option>
+                        <option value="time">⏰ 时间 Time</option>
+                      </select>
+                    </div>
 
-                  {/* Value */}
-                  {condition.type === 'time' ? (
-                    <input
-                      type="datetime-local"
-                      className="col-span-1 h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
-                      value={
-                        condition.value
-                          ? new Date(condition.value).toISOString().slice(0, 16)
-                          : ''
-                      }
-                      onChange={(e) =>
-                        updateCondition(
-                          index,
-                          'value',
-                          new Date(e.target.value)
-                        )
-                      }
-                    />
-                  ) : (
-                    <Input
-                      type="number"
-                      step="0.000001"
-                      min="0"
-                      placeholder={
-                        condition.type === 'price'
-                          ? '0.001'
-                          : condition.type === 'marketCap'
-                          ? '100000'
-                          : '50000'
-                      }
-                      value={typeof condition.value === 'number' ? condition.value : ''}
-                      onChange={(e) =>
-                        updateCondition(index, 'value', parseFloat(e.target.value))
-                      }
-                    />
-                  )}
-                </div>
+                    {/* Operator */}
+                    <div className="sm:col-span-3">
+                      <select
+                        className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none font-mono"
+                        value={condition.operator}
+                        onChange={(e) => updateCondition(index, 'operator', e.target.value)}
+                      >
+                        <option value=">">&gt; 大于</option>
+                        <option value="<">&lt; 小于</option>
+                        <option value=">=">≥ 大于等于</option>
+                        <option value="<=">≤ 小于等于</option>
+                        <option value="=">= 等于</option>
+                      </select>
+                    </div>
 
-                {/* Condition Preview */}
-                <div className="text-xs text-muted-foreground">
-                  {condition.type === 'price' && <DollarSign className="w-3 h-3 inline mr-1" />}
-                  {condition.type === 'marketCap' && <TrendingUp className="w-3 h-3 inline mr-1" />}
-                  {condition.type === 'volume' && <Activity className="w-3 h-3 inline mr-1" />}
-                  {condition.type === 'time' && <Calendar className="w-3 h-3 inline mr-1" />}
+                    {/* Value */}
+                    <div className="sm:col-span-5">
+                      {condition.type === 'time' ? (
+                        <input
+                          type="datetime-local"
+                          className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                          value={
+                            condition.value
+                              ? new Date(condition.value).toISOString().slice(0, 16)
+                              : ''
+                          }
+                          onChange={(e) =>
+                            updateCondition(
+                              index,
+                              'value',
+                              new Date(e.target.value)
+                            )
+                          }
+                        />
+                      ) : (
+                        <Input
+                          type="number"
+                          step="0.000001"
+                          min="0"
+                          placeholder="Value"
+                          value={typeof condition.value === 'number' ? condition.value : ''}
+                          onChange={(e) =>
+                            updateCondition(index, 'value', parseFloat(e.target.value))
+                          }
+                          className="h-10 font-mono"
+                        />
+                      )}
+                    </div>
+                  </div>
 
-                  {condition.type === 'price' && `当价格 ${condition.operator} ${formatPrice(condition.value as number)}`}
-                  {condition.type === 'marketCap' && `当市值 ${condition.operator} ${formatCurrency(condition.value as number)}`}
-                  {condition.type === 'volume' && `当24h交易量 ${condition.operator} ${formatCurrency(condition.value as number)}`}
-                  {condition.type === 'time' && `在 ${condition.value ? new Date(condition.value).toLocaleString() : '...'}`}
+                  {/* Preview */}
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground bg-background/50 px-3 py-2 rounded-lg">
+                    {condition.type === 'price' && <DollarSign className="w-3.5 h-3.5 text-primary" />}
+                    {condition.type === 'marketCap' && <TrendingUp className="w-3.5 h-3.5 text-primary" />}
+                    {condition.type === 'volume' && <Activity className="w-3.5 h-3.5 text-primary" />}
+                    {condition.type === 'time' && <Calendar className="w-3.5 h-3.5 text-primary" />}
+                    
+                    <span className="font-medium">
+                      {condition.type === 'price' && `Trigger when Price ${condition.operator} ${formatPrice(condition.value as number)}`}
+                      {condition.type === 'marketCap' && `Trigger when MC ${condition.operator} ${formatCurrency(condition.value as number)}`}
+                      {condition.type === 'volume' && `Trigger when Vol ${condition.operator} ${formatCurrency(condition.value as number)}`}
+                      {condition.type === 'time' && `Trigger at ${condition.value ? new Date(condition.value).toLocaleString() : '...'}`}
+                    </span>
+                  </div>
                 </div>
               </div>
-            </Card>
-          ))}
+            ))}
+          </div>
         </div>
 
         {/* Summary */}
-        <div className="p-4 bg-secondary rounded-lg space-y-2">
-          <div className="text-sm font-medium">订单摘要</div>
-          <div className="text-sm text-muted-foreground">
-            当以下所有条件满足时，将自动买入 {amount || '0'} {token.chain === 'solana' ? 'SOL' : 'BNB'} 的 {token.symbol}：
+        <div className="bg-primary/5 border border-primary/10 rounded-xl p-5 space-y-3">
+          <div className="flex items-center gap-2 font-semibold text-primary">
+            <Activity className="w-4 h-4" />
+            订单摘要
           </div>
-          <ul className="text-sm text-muted-foreground list-disc list-inside">
-            {conditions.map((c, i) => (
-              <li key={i}>
-                {c.type === 'price' && `价格 ${c.operator} ${formatPrice(c.value as number)}`}
-                {c.type === 'marketCap' && `市值 ${c.operator} ${formatCurrency(c.value as number)}`}
-                {c.type === 'volume' && `24h交易量 ${c.operator} ${formatCurrency(c.value as number)}`}
-                {c.type === 'time' && `时间到达 ${c.value ? new Date(c.value).toLocaleString() : '...'}`}
-              </li>
-            ))}
-          </ul>
+          <div className="text-sm leading-relaxed">
+            当满足 <span className="font-bold">{conditions.length}</span> 个条件时，系统将自动买入{' '}
+            <span className="font-bold text-foreground">{amount || '0'} {token.chain === 'solana' ? 'SOL' : 'BNB'}</span>{' '}
+            的 <span className="font-bold text-foreground">{token.symbol}</span>
+          </div>
         </div>
 
         {/* Actions */}
-        <div className="flex gap-2">
-          <Button className="flex-1" onClick={handleSubmit}>
-            创建条件单
-          </Button>
+        <div className="grid grid-cols-2 gap-4 pt-2">
           {onClose && (
-            <Button variant="outline" onClick={onClose}>
+            <Button variant="outline" onClick={onClose} size="lg" className="w-full">
               取消
             </Button>
           )}
+          <Button onClick={handleSubmit} size="lg" className={`w-full font-bold shadow-lg shadow-primary/20 ${!onClose ? 'col-span-2' : ''}`}>
+            立即创建
+          </Button>
         </div>
       </CardContent>
     </Card>

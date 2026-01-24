@@ -32,7 +32,13 @@ export function ChatInterface({ onOrderCreated }: ChatInterfaceProps) {
 
   // Auto scroll to bottom
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (messagesEndRef.current?.parentElement) {
+      const scrollContainer = messagesEndRef.current.parentElement;
+      scrollContainer.scrollTo({
+        top: scrollContainer.scrollHeight,
+        behavior: 'smooth'
+      });
+    }
   }, [messages]);
 
   // Send text message
@@ -255,54 +261,69 @@ export function ChatInterface({ onOrderCreated }: ChatInterfaceProps) {
   };
 
   return (
-    <Card className="h-[calc(100vh-12rem)] sm:h-[600px] flex flex-col">
-      <CardHeader className="pb-3 sm:pb-6">
-        <CardTitle className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-base sm:text-lg">
-          <span>AI 交易助手</span>
-          <Badge variant="outline" className="text-xs w-fit">Claude + Whisper</Badge>
+    <Card className="h-[calc(100vh-12rem)] sm:h-[600px] flex flex-col shadow-lg border-muted/40 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60">
+      <CardHeader className="border-b px-4 py-3 sm:px-6 sm:py-4">
+        <CardTitle className="flex items-center gap-2 text-lg font-bold">
+          <div className="p-2 bg-primary/10 rounded-lg">
+            <span className="text-xl">🤖</span>
+          </div>
+          <div className="flex flex-col">
+            <span>AI 交易助手</span>
+            <span className="text-xs font-normal text-muted-foreground">基于 Claude + Whisper</span>
+          </div>
         </CardTitle>
       </CardHeader>
 
-      <CardContent className="flex-1 flex flex-col p-3 sm:p-4 space-y-3 sm:space-y-4 overflow-hidden">
+      <CardContent className="flex-1 flex flex-col p-0 overflow-hidden">
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto space-y-3 sm:space-y-4 pr-1 sm:pr-2 -mr-1 sm:-mr-2">
+        <div className="flex-1 overflow-y-auto p-4 space-y-6">
           {messages.map((message) => (
             <div
               key={message.id}
               className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
               <div
-                className={`max-w-[85%] sm:max-w-[80%] rounded-lg px-3 py-2 sm:px-4 sm:py-2 ${
+                className={`max-w-[85%] sm:max-w-[80%] rounded-2xl px-4 py-3 shadow-sm ${
                   message.role === 'user'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-secondary text-secondary-foreground'
+                    ? 'bg-primary text-primary-foreground rounded-br-none'
+                    : 'bg-muted/50 text-foreground rounded-bl-none border border-border/50'
                 }`}
               >
                 <div className="flex items-start gap-2">
                   {message.type === 'voice' && (
-                    <Mic className="w-3.5 h-3.5 sm:w-4 sm:h-4 mt-0.5 sm:mt-1 flex-shrink-0" />
+                    <Mic className="w-4 h-4 mt-1 flex-shrink-0 opacity-70" />
                   )}
-                  <p className="text-xs sm:text-sm whitespace-pre-wrap break-words">{message.content}</p>
+                  <div className="text-sm leading-relaxed whitespace-pre-wrap break-words">
+                    {message.content}
+                  </div>
                 </div>
-                {message.role === 'assistant' && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="mt-1.5 sm:mt-2 h-6 sm:h-7 px-2 text-xs"
-                    onClick={() => speakMessage(message.content)}
-                    disabled={isSpeaking}
-                  >
-                    <Volume2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 mr-1" />
-                    朗读
-                  </Button>
-                )}
+                
+                <div className={`flex items-center gap-2 mt-2 ${message.role === 'user' ? 'justify-end text-primary-foreground/70' : 'justify-between text-muted-foreground'}`}>
+                  <span className="text-[10px]">
+                    {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                  
+                  {message.role === 'assistant' && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 hover:bg-background/50"
+                      onClick={() => speakMessage(message.content)}
+                      disabled={isSpeaking}
+                      title="朗读"
+                    >
+                      <Volume2 className="w-3.5 h-3.5" />
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
           ))}
           {isProcessing && (
-            <div className="flex justify-start">
-              <div className="bg-secondary rounded-lg px-3 py-2 sm:px-4 sm:py-2">
-                <Loader2 className="w-4 h-4 animate-spin" />
+            <div className="flex justify-start animate-in fade-in slide-in-from-bottom-2">
+              <div className="bg-muted/50 rounded-2xl rounded-bl-none px-4 py-3 flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                <span className="text-xs text-muted-foreground">正在思考...</span>
               </div>
             </div>
           )}
@@ -311,46 +332,54 @@ export function ChatInterface({ onOrderCreated }: ChatInterfaceProps) {
 
         {/* Recording indicator */}
         {isRecording && (
-          <div className="text-center py-1">
-            <Badge variant="destructive" className="animate-pulse text-xs">
-              🔴 正在录音...
+          <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-10">
+            <Badge variant="destructive" className="animate-pulse shadow-lg px-4 py-1.5 rounded-full flex items-center gap-2">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
+              </span>
+              正在录音...
             </Badge>
           </div>
         )}
 
         {/* Input Area */}
-        <div className="flex gap-2 pt-2 sm:pt-0 border-t sm:border-t-0">
-          <Input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
-            placeholder="输入消息..."
-            disabled={isProcessing || isRecording}
-            className="flex-1 text-sm sm:text-base h-9 sm:h-10"
-          />
+        <div className="p-4 border-t bg-background/50 backdrop-blur-sm">
+          <div className="flex gap-2">
+            <Button
+              onClick={isRecording ? stopRecording : startRecording}
+              variant={isRecording ? 'destructive' : 'outline'}
+              size="icon"
+              disabled={isProcessing}
+              className={`h-11 w-11 rounded-full flex-shrink-0 transition-all duration-300 ${isRecording ? 'scale-110 shadow-red-500/20 shadow-lg' : 'hover:bg-muted'}`}
+            >
+              {isRecording ? (
+                <MicOff className="w-5 h-5" />
+              ) : (
+                <Mic className="w-5 h-5" />
+              )}
+            </Button>
 
-          <Button
-            onClick={isRecording ? stopRecording : startRecording}
-            variant={isRecording ? 'destructive' : 'outline'}
-            size="icon"
-            disabled={isProcessing}
-            className="h-9 w-9 sm:h-10 sm:w-10 flex-shrink-0"
-          >
-            {isRecording ? (
-              <MicOff className="w-4 h-4 animate-pulse" />
-            ) : (
-              <Mic className="w-4 h-4" />
-            )}
-          </Button>
-
-          <Button
-            onClick={handleSendMessage}
-            disabled={!input.trim() || isProcessing}
-            size="icon"
-            className="h-9 w-9 sm:h-10 sm:w-10 flex-shrink-0"
-          >
-            <Send className="w-4 h-4" />
-          </Button>
+            <div className="flex-1 relative">
+              <Input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
+                placeholder="输入消息..."
+                disabled={isProcessing || isRecording}
+                className="h-11 rounded-full pl-4 pr-12 shadow-sm bg-background/80 focus-visible:ring-primary/20"
+              />
+              <Button
+                onClick={handleSendMessage}
+                disabled={!input.trim() || isProcessing}
+                size="icon"
+                variant="ghost"
+                className="absolute right-1 top-1 h-9 w-9 rounded-full hover:bg-primary/10 hover:text-primary"
+              >
+                <Send className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
         </div>
       </CardContent>
     </Card>
