@@ -15,10 +15,22 @@ const STORAGE_KEY = 'ai-meme-trader-config';
 export default function SettingsPage() {
   const [showKey, setShowKey] = useState(false);
   const [protocol, setProtocol] = useState<AIProvider>('anthropic');
-  const [selectedProviderId, setSelectedProviderId] = useState('anthropic-official');
-  const [apiKey, setApiKey] = useState('');
-  const [customBaseURL, setCustomBaseURL] = useState('');
-  const [customModel, setCustomModel] = useState('');
+  const [selectedProviderIds, setSelectedProviderIds] = useState<Record<AIProvider, string>>({
+    anthropic: 'anthropic-official',
+    openai: 'openai-official',
+    '0g-compute': '0g-compute-official',
+  });
+  const [apiKey, setApiKey] = useState(''); // Shared key for simplicity, or could be per-provider
+  const [customBaseURLs, setCustomBaseURLs] = useState<Record<AIProvider, string>>({
+    anthropic: '',
+    openai: '',
+    '0g-compute': '',
+  });
+  const [customModels, setCustomModels] = useState<Record<AIProvider, string>>({
+    anthropic: 'claude-3-5-sonnet-20241022',
+    openai: 'gpt-4-turbo-preview',
+    '0g-compute': 'qwen/qwen-2.5-7b-instruct',
+  });
   const [saved, setSaved] = useState(false);
   const [zgBalance, setZgBalance] = useState<{ total: string; available: string; subAccount: string } | null>(null);
   const [checkingBalance, setCheckingBalance] = useState(false);
@@ -31,6 +43,9 @@ export default function SettingsPage() {
     );
   }, [protocol]);
 
+  const selectedProviderId = selectedProviderIds[protocol];
+  const customBaseURL = customBaseURLs[protocol];
+  const customModel = customModels[protocol];
   const isCustom = selectedProviderId === 'custom';
   
   // Find selected provider details (from presets)
@@ -38,25 +53,14 @@ export default function SettingsPage() {
 
   const handleProtocolChange = (newProtocol: AIProvider) => {
     setProtocol(newProtocol);
-    // Reset selection when protocol changes
-    if (newProtocol === 'anthropic') {
-      setSelectedProviderId('anthropic-official');
-      // Set default model for the new protocol's default provider
-      const defaultProvider = PRESET_PROVIDERS.find(p => p.id === 'anthropic-official');
-      if (defaultProvider) setCustomModel(defaultProvider.defaultModel);
-    } else {
-      setSelectedProviderId('openai-official');
-      const defaultProvider = PRESET_PROVIDERS.find(p => p.id === 'openai-official');
-      if (defaultProvider) setCustomModel(defaultProvider.defaultModel);
-    }
   };
 
   const handleProviderSelect = (providerId: string) => {
-    setSelectedProviderId(providerId);
+    setSelectedProviderIds(prev => ({ ...prev, [protocol]: providerId }));
     if (providerId !== 'custom') {
       const provider = PRESET_PROVIDERS.find(p => p.id === providerId);
       if (provider) {
-        setCustomModel(provider.defaultModel);
+        setCustomModels(prev => ({ ...prev, [protocol]: provider.defaultModel }));
       }
     }
   };
@@ -66,11 +70,21 @@ export default function SettingsPage() {
       provider: protocol,
       apiKey,
       baseURL: isCustom ? customBaseURL : selectedProvider?.baseURL || undefined,
-      // Always use the customModel state, which allows overriding defaults
       model: customModel || selectedProvider?.defaultModel, 
     };
 
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+    // Save full maps to ensure persistence across sessions
+    const fullConfig = {
+      apiKey,
+      lastProtocol: protocol,
+      providerIds: selectedProviderIds,
+      baseURLs: customBaseURLs,
+      models: customModels,
+    };
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(config)); // Keep 0.6.x compatibility for the backend
+    localStorage.setItem(STORAGE_KEY + '-v2', JSON.stringify(fullConfig)); // New format for UI state
+    
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
   };
@@ -102,48 +116,35 @@ export default function SettingsPage() {
   };
 
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      const config: AIConfig = JSON.parse(stored);
-      setApiKey(config.apiKey || '');
-      
-      // Restore protocol
-      if (config.provider) {
-        setProtocol(config.provider);
-      }
-
-      // Restore provider selection
-      if (config.baseURL) {
-        const matchingProvider = PRESET_PROVIDERS.find(
-          p => p.baseURL === config.baseURL && p.provider === config.provider
-        );
-        if (matchingProvider) {
-          setSelectedProviderId(matchingProvider.id);
-        } else {
-          setSelectedProviderId('custom');
-          setCustomBaseURL(config.baseURL);
-        }
-      } else {
-        // No base URL usually means official provider
-        // Try to find matching official provider for the protocol
-        const defaultOfficial = PRESET_PROVIDERS.find(
-            p => p.provider === config.provider && !p.baseURL
-        );
-        if (defaultOfficial) {
-            setSelectedProviderId(defaultOfficial.id);
-        } else {
-            // Fallback
-            setSelectedProviderId('custom');
-        }
-      }
-      
-      // Always restore the model if present
-      if (config.model) {
-        setCustomModel(config.model);
-      }
+    const v2Stored = localStorage.getItem(STORAGE_KEY + '-v2');
+    if (v2Stored) {
+      const config = JSON.parse(v2Stored);
+      if (config.apiKey) setApiKey(config.apiKey);
+      if (config.lastProtocol) setProtocol(config.lastProtocol);
+      if (config.providerIds) setSelectedProviderIds(config.providerIds);
+      if (config.baseURLs) setCustomBaseURLs(config.baseURLs);
+      if (config.models) setCustomModels(config.models);
     } else {
-        // Initialize default model if no config
-        setCustomModel('claude-3-5-sonnet-20241022');
+      // Migration from old config
+      const oldStored = localStorage.getItem(STORAGE_KEY);
+      if (oldStored) {
+        const config: AIConfig = JSON.parse(oldStored);
+        setApiKey(config.apiKey || '');
+        if (config.provider) {
+          setProtocol(config.provider);
+          // Try to migrate this specific provider's data
+          if (config.model) setCustomModels(prev => ({ ...prev, [config.provider]: config.model }));
+          if (config.baseURL) {
+            setCustomBaseURLs(prev => ({ ...prev, [config.provider]: config.baseURL }));
+            const matchingProvider = PRESET_PROVIDERS.find(p => p.baseURL === config.baseURL && p.provider === config.provider);
+            if (matchingProvider) {
+              setSelectedProviderIds(prev => ({ ...prev, [config.provider]: matchingProvider.id }));
+            } else {
+              setSelectedProviderIds(prev => ({ ...prev, [config.provider]: 'custom' }));
+            }
+          }
+        }
+      }
     }
   }, []);
 
@@ -316,7 +317,7 @@ export default function SettingsPage() {
                       'https://api.example.com/v1'
                     }
                     value={customBaseURL}
-                    onChange={(e) => setCustomBaseURL(e.target.value)}
+                    onChange={(e) => setCustomBaseURLs(prev => ({ ...prev, [protocol]: e.target.value }))}
                   />
                   <p className="text-xs text-muted-foreground">
                     {protocol === '0g-compute' 
@@ -333,7 +334,7 @@ export default function SettingsPage() {
                   type="text"
                   placeholder="e.g., gpt-4, claude-3-5-sonnet"
                   value={customModel}
-                  onChange={(e) => setCustomModel(e.target.value)}
+                  onChange={(e) => setCustomModels(prev => ({ ...prev, [protocol]: e.target.value }))}
                 />
                 <p className="text-xs text-muted-foreground">
                     {isCustom 
