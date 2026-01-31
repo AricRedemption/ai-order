@@ -1,11 +1,12 @@
 # AI Meme Trader
 
-A Next.js application that combines AI (Anthropic/OpenAI APIs) with blockchain trading capabilities for meme coins on Solana and BNB chains.
+A Next.js application that combines AI (Anthropic/OpenAI APIs + 0G Compute Network) with blockchain trading capabilities for meme coins on Solana and BNB chains.
 
 ## Features
 
 ✨ **AI-Powered Trading**
 - Anthropic Claude & OpenAI GPT integration
+- 0G Compute Network integration (decentralized inference)
 - Voice commands via OpenAI Whisper & TTS
 - Natural language order creation
 
@@ -49,6 +50,8 @@ ANTHROPIC_API_KEY=your_anthropic_key_here
 OPENAI_API_KEY=your_openai_key_here
 ```
 
+Note: 0G Compute does not use an API key. It uses an EVM private key and is configured in the UI (stored locally in your browser).
+
 ### 3. Run Development Server
 
 ```bash
@@ -60,8 +63,10 @@ Open [http://localhost:3000](http://localhost:3000) to see the app.
 ### 4. Configure API Keys in UI
 
 1. Navigate to Settings page
-2. Enter your Anthropic and OpenAI API keys
-3. Keys are stored locally in your browser
+2. Select the protocol you want to use (Anthropic / OpenAI Compatible / 0G Compute)
+3. For Anthropic/OpenAI: enter your API key
+4. For 0G Compute: enter your private key, optionally override provider address/model, then check your 0G balance
+5. Keys are stored locally in your browser
 
 ## Project Structure
 
@@ -107,6 +112,11 @@ interface TradingStrategy {
 - Monitors orders every 5 seconds
 - Supports 4 condition types
 - Automatic execution when triggered
+
+### 0G Compute Network
+- Adds a decentralized inference option alongside Anthropic/OpenAI-compatible providers
+- Uses `@0glabs/0g-serving-broker` to discover services and request inference
+- Exposes a balance-check endpoint for the 0G ledger
 
 ## Technology Stack
 
