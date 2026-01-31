@@ -121,7 +121,7 @@ async function sendOpenAIMessage(
 
 async function getZGBroker(privateKey: string) {
   if (!zgBroker) {
-    const provider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_SOLANA_RPC || 'https://evm-storage-testnet.0g.ai'); // Fallback to 0G testnet
+    const provider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_ZG_RPC || 'https://evmrpc-testnet.0g.ai');
     const signer = new ethers.Wallet(privateKey, provider);
     zgBroker = await createZGComputeNetworkBroker(signer);
   }
@@ -141,8 +141,8 @@ async function send0GComputeMessage(
   const serviceName = config.model || DEFAULT_MODELS['0g-compute'];
   
   // List services to find the provider
-  const services = await broker.inference.listServices();
-  const service = services.find((s: any) => s.name === serviceName);
+  const services = await broker.inference.listService();
+  const service = services.find((s: any) => s.model === serviceName);
   
   if (!service) {
     throw new Error(`Service ${serviceName} not found on 0G Compute Network`);
@@ -153,6 +153,7 @@ async function send0GComputeMessage(
 
   // Initializing headers for OpenAI compatible API
   const content = JSON.stringify({
+    model: serviceName,
     messages: systemPrompt 
       ? [{ role: 'system', content: systemPrompt }, ...messages]
       : messages
@@ -160,7 +161,6 @@ async function send0GComputeMessage(
 
   const headers = await broker.inference.getRequestHeaders(
     providerAddress,
-    serviceName,
     content
   );
 
@@ -182,7 +182,7 @@ async function send0GComputeMessage(
   
   // Optional: Verify response
   if (result.id) {
-    await broker.inference.processResponse(result.id);
+    await broker.inference.processResponse(providerAddress, result.id, result.choices[0]?.message?.content);
   }
 
   return result.choices[0]?.message?.content || '';
@@ -194,10 +194,10 @@ export async function get0GBalance(privateKey: string, modelName?: string) {
   
   let subAccountBalance = '0';
   if (modelName) {
-    const services = await broker.inference.listServices();
-    const service = services.find((s: any) => s.name === modelName);
+    const services = await broker.inference.listService();
+    const service = services.find((s: any) => s.model === modelName);
     if (service) {
-      const [subAccount] = await broker.inference.getAccountWithDetail(service.provider);
+      const subAccount = await broker.inference.getAccount(service.provider);
       subAccountBalance = ethers.formatEther(subAccount.balance);
     }
   }
