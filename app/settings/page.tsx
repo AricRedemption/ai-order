@@ -82,7 +82,11 @@ export default function SettingsPage() {
       const response = await fetch('/api/ai/0g/balance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ privateKey: apiKey, modelName: customModel }),
+        body: JSON.stringify({ 
+          privateKey: apiKey, 
+          modelName: customModel,
+          providerAddress: customBaseURL
+        }),
       });
       const data = await response.json();
       if (data.success) {
@@ -301,15 +305,23 @@ export default function SettingsPage() {
               {/* Custom Base URL */}
               {isCustom && (
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Base URL</label>
+                  <label className="text-sm font-medium">
+                    {protocol === '0g-compute' ? 'Provider Address (Optional)' : 'Base URL'}
+                  </label>
                   <Input
                     type="text"
-                    placeholder={protocol === 'anthropic' ? 'https://api.anthropic.com' : 'https://api.example.com/v1'}
+                    placeholder={
+                      protocol === '0g-compute' ? '0x...' : 
+                      protocol === 'anthropic' ? 'https://api.anthropic.com' : 
+                      'https://api.example.com/v1'
+                    }
                     value={customBaseURL}
                     onChange={(e) => setCustomBaseURL(e.target.value)}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Enter the API Base URL for your {protocol === 'anthropic' ? 'Anthropic' : 'OpenAI'} compatible provider
+                    {protocol === '0g-compute' 
+                      ? 'Override the provider address if automatic discovery fails.' 
+                      : `Enter the API Base URL for your ${protocol === 'anthropic' ? 'Anthropic' : 'OpenAI'} compatible provider`}
                   </p>
                 </div>
               )}

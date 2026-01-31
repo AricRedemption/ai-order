@@ -141,19 +141,30 @@ async function send0GComputeMessage(
   const serviceName = config.model || DEFAULT_MODELS['0g-compute'];
   
   // List services to find the provider
-  const services = await broker.inference.listService();
+  const services = await (broker.inference as any).listServices?.() || await broker.inference.listService();
   const service = services.find((s: any) => s.model === serviceName);
   
   if (!service) {
     throw new Error(`Service ${serviceName} not found on 0G Compute Network`);
   }
 
-  const providerAddress = service.provider;
-  const serviceUrl = service.url;
+  const rawAddress = (config.baseURL || service.provider || '').trim();
+  const providerAddress = rawAddress.startsWith('0x') ? rawAddress : service.provider;
+  const { endpoint, model: metadataModel } = await (broker.inference as any).getServiceMetadata(providerAddress);
+  const finalModel = metadataModel || serviceName;
+
+  // Signer acknowledgement
+  try {
+    await broker.inference.acknowledgeProviderSigner(providerAddress);
+  } catch (err) {
+    console.warn('[0G] Signer acknowledgement failed or already done:', err);
+  }
+
+  console.log(`[0G] Requesting service: ${finalModel} at ${endpoint}`);
 
   // Initializing headers for OpenAI compatible API
   const content = JSON.stringify({
-    model: serviceName,
+    model: finalModel,
     messages: systemPrompt 
       ? [{ role: 'system', content: systemPrompt }, ...messages]
       : messages
@@ -164,7 +175,10 @@ async function send0GComputeMessage(
     content
   );
 
-  const response = await fetch(`${serviceUrl}/v1/chat/completions`, {
+  const baseUrl = endpoint.endsWith('/') ? endpoint.slice(0, -1) : endpoint;
+  const chatEndpoint = baseUrl.includes('/v1') ? `${baseUrl}/chat/completions` : `${baseUrl}/v1/chat/completions`;
+
+  const response = await fetch(chatEndpoint, {
     method: 'POST',
     headers: {
       ...headers,
@@ -182,22 +196,30 @@ async function send0GComputeMessage(
   
   // Optional: Verify response
   if (result.id) {
-    await broker.inference.processResponse(providerAddress, result.id, result.choices[0]?.message?.content);
+    try {
+      await (broker.inference as any).processResponse(providerAddress, result.id, result.choices[0]?.message?.content);
+    } catch (err) {
+      console.warn('[0G] Process response verification failed:', err);
+    }
   }
 
   return result.choices[0]?.message?.content || '';
 }
 
-export async function get0GBalance(privateKey: string, modelName?: string) {
+export async function get0GBalance(privateKey: string, modelName?: string, providerOverride?: string) {
   const broker = await getZGBroker(privateKey);
   const ledger = await broker.ledger.getLedger();
   
   let subAccountBalance = '0';
-  if (modelName) {
-    const services = await broker.inference.listService();
+  if (modelName || providerOverride) {
+    const services = await (broker.inference as any).listServices?.() || await broker.inference.listService();
     const service = services.find((s: any) => s.model === modelName);
-    if (service) {
-      const subAccount = await broker.inference.getAccount(service.provider);
+    
+    const rawOverride = (providerOverride || '').trim();
+    const providerAddress = rawOverride.startsWith('0x') ? rawOverride : service?.provider;
+    
+    if (providerAddress) {
+      const subAccount = await broker.inference.getAccount(providerAddress);
       subAccountBalance = ethers.formatEther(subAccount.balance);
     }
   }

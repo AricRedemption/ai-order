@@ -4,7 +4,7 @@ import { get0GBalance } from '@/lib/ai/client';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { privateKey, modelName } = body;
+    const { privateKey, modelName, providerAddress } = body;
 
     if (!privateKey) {
       return NextResponse.json(
@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const balance = await get0GBalance(privateKey, modelName);
+    const balance = await get0GBalance(privateKey, modelName, providerAddress);
 
     return NextResponse.json({
       success: true,
