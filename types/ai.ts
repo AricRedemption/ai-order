@@ -12,7 +12,7 @@ export interface AIMessage {
 }
 
 // AI provider type
-export type AIProvider = 'anthropic' | 'openai';
+export type AIProvider = 'anthropic' | 'openai' | '0g-compute';
 
 // AI configuration
 export interface AIConfig {
