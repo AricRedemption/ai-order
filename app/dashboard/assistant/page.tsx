@@ -25,7 +25,7 @@ export default function AssistantPage() {
               
               <div className="p-4 bg-blue-500/5 border border-blue-500/10 rounded-xl text-sm text-muted-foreground">
                 <p className="font-semibold text-blue-500 mb-1">💡 Pro Tip</p>
-                Try saying: "Buy 1M PEPE when market cap hits $500M"
+                Try saying: &quot;Buy 1M PEPE when market cap hits $500M&quot;
               </div>
             </div>
         </div>
