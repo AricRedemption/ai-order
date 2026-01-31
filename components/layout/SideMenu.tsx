@@ -30,11 +30,27 @@ export const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose }) => {
 
   useEffect(() => {
     // 1. Initialize from LocalStorage
+    const legacyAddress = localStorage.getItem('wallet-address');
+    const legacyType = localStorage.getItem('wallet-type') as 'phantom' | 'metamask' | null;
     const savedSol = localStorage.getItem('wallet-address-solana');
     const savedEvm = localStorage.getItem('wallet-address-evm');
 
-    if (savedSol) setSolanaAddress(savedSol);
-    if (savedEvm) setEvmAddress(savedEvm);
+    if (legacyAddress && legacyType) {
+      if (legacyType === 'phantom' && !savedSol) {
+        localStorage.setItem('wallet-address-solana', legacyAddress);
+      }
+      if (legacyType === 'metamask' && !savedEvm) {
+        localStorage.setItem('wallet-address-evm', legacyAddress);
+      }
+      localStorage.removeItem('wallet-address');
+      localStorage.removeItem('wallet-type');
+    }
+
+    const nextSol = localStorage.getItem('wallet-address-solana');
+    const nextEvm = localStorage.getItem('wallet-address-evm');
+
+    if (nextSol) setSolanaAddress(nextSol);
+    if (nextEvm) setEvmAddress(nextEvm);
 
     // 2. Setup Event Listeners
     if (typeof window !== 'undefined') {
@@ -79,9 +95,10 @@ export const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose }) => {
     if (type === 'phantom') {
       setSolanaAddress(null);
       localStorage.removeItem('wallet-address-solana');
-      // Optional: disconnect from provider if API supports it
-      if ((window as any).solana) {
-         (window as any).solana.disconnect();
+      try {
+        (window as any).solana?.disconnect?.();
+      } catch (error) {
+        console.error('Phantom disconnect error:', error);
       }
     } else {
       setEvmAddress(null);
@@ -238,8 +255,33 @@ const WalletButton: React.FC<WalletButtonProps> = ({ name, bgColor, borderColor,
         }
       } else {
         if (typeof window !== 'undefined' && (window as any).ethereum) {
+          const switchToBsc = async () => {
+            try {
+              await (window as any).ethereum.request({
+                method: 'wallet_switchEthereumChain',
+                params: [{ chainId: '0x38' }],
+              });
+            } catch (switchError: any) {
+              if (switchError?.code === 4902) {
+                await (window as any).ethereum.request({
+                  method: 'wallet_addEthereumChain',
+                  params: [
+                    {
+                      chainId: '0x38',
+                      chainName: 'BNB Smart Chain',
+                      nativeCurrency: { name: 'BNB', symbol: 'BNB', decimals: 18 },
+                      rpcUrls: ['https://bsc-dataseed.binance.org'],
+                      blockExplorerUrls: ['https://bscscan.com'],
+                    },
+                  ],
+                });
+              }
+            }
+          };
+
           const accounts = await (window as any).ethereum.request({ method: 'eth_requestAccounts' });
           if (accounts.length > 0) {
+            await switchToBsc();
             onConnect(accounts[0]);
           }
         } else {

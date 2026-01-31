@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Wallet, ExternalLink } from 'lucide-react';
@@ -14,48 +14,120 @@ interface WalletConnectionProps {
 }
 
 export function WalletConnection({ onConnect, onDisconnect }: WalletConnectionProps) {
-  const [walletAddress, setWalletAddress] = useState<string | null>(null);
-  const [walletType, setWalletType] = useState<WalletType>(null);
+  const [solanaAddress, setSolanaAddress] = useState<string | null>(null);
+  const [evmAddress, setEvmAddress] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
 
-  useEffect(() => {
-    // Check if wallet was previously connected
-    const savedAddress = localStorage.getItem('wallet-address');
-    const savedType = localStorage.getItem('wallet-type') as WalletType;
-
-    if (savedAddress && savedType) {
-      setWalletAddress(savedAddress);
-      setWalletType(savedType);
+  const disconnectPhantom = useCallback(() => {
+    setSolanaAddress(null);
+    localStorage.removeItem('wallet-address-solana');
+    try {
+      window.solana?.disconnect?.();
+    } catch (error) {
+      console.error('Phantom disconnect error:', error);
     }
+    onDisconnect?.();
+  }, [onDisconnect]);
+
+  const disconnectMetaMask = useCallback(() => {
+    setEvmAddress(null);
+    localStorage.removeItem('wallet-address-evm');
+    onDisconnect?.();
+  }, [onDisconnect]);
+
+  useEffect(() => {
+    const legacyAddress = localStorage.getItem('wallet-address');
+    const legacyType = localStorage.getItem('wallet-type') as WalletType;
+    const savedSol = localStorage.getItem('wallet-address-solana');
+    const savedEvm = localStorage.getItem('wallet-address-evm');
+
+    if (legacyAddress && legacyType) {
+      if (legacyType === 'phantom' && !savedSol) {
+        localStorage.setItem('wallet-address-solana', legacyAddress);
+      }
+      if (legacyType === 'metamask' && !savedEvm) {
+        localStorage.setItem('wallet-address-evm', legacyAddress);
+      }
+      localStorage.removeItem('wallet-address');
+      localStorage.removeItem('wallet-type');
+    }
+
+    const nextSol = localStorage.getItem('wallet-address-solana');
+    const nextEvm = localStorage.getItem('wallet-address-evm');
+    if (nextSol) setSolanaAddress(nextSol);
+    if (nextEvm) setEvmAddress(nextEvm);
 
     // Listen for account changes
     if (typeof window !== 'undefined') {
+      const cleanups: Array<() => void> = [];
+
       // Phantom (Solana)
       if (window.solana) {
-        window.solana.on('accountChanged', (publicKey: any) => {
+        const phantomHandler = (publicKey: any) => {
           if (publicKey) {
             const address = publicKey.toString();
-            setWalletAddress(address);
-            localStorage.setItem('wallet-address', address);
+            setSolanaAddress(address);
+            localStorage.setItem('wallet-address-solana', address);
           } else {
-            handleDisconnect();
+            disconnectPhantom();
           }
+        };
+        window.solana.on('accountChanged', phantomHandler);
+        cleanups.push(() => {
+          try {
+            window.solana?.removeListener?.('accountChanged', phantomHandler);
+          } catch {}
         });
       }
 
       // MetaMask (Ethereum/BNB)
       if (window.ethereum) {
-        window.ethereum.on('accountsChanged', (accounts: string[]) => {
+        const metamaskHandler = (accounts: string[]) => {
           if (accounts.length > 0) {
-            setWalletAddress(accounts[0]);
-            localStorage.setItem('wallet-address', accounts[0]);
+            setEvmAddress(accounts[0]);
+            localStorage.setItem('wallet-address-evm', accounts[0]);
           } else {
-            handleDisconnect();
+            disconnectMetaMask();
           }
+        };
+        window.ethereum.on('accountsChanged', metamaskHandler);
+        cleanups.push(() => {
+          try {
+            window.ethereum?.removeListener?.('accountsChanged', metamaskHandler);
+          } catch {}
+        });
+      }
+
+      return () => {
+        for (const cleanup of cleanups) cleanup();
+      };
+    }
+  }, [disconnectMetaMask, disconnectPhantom]);
+
+  const switchToBsc = async () => {
+    if (typeof window === 'undefined' || !window.ethereum) return;
+    try {
+      await window.ethereum.request({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: '0x38' }],
+      });
+    } catch (switchError: any) {
+      if (switchError?.code === 4902) {
+        await window.ethereum.request({
+          method: 'wallet_addEthereumChain',
+          params: [
+            {
+              chainId: '0x38',
+              chainName: 'BNB Smart Chain',
+              nativeCurrency: { name: 'BNB', symbol: 'BNB', decimals: 18 },
+              rpcUrls: ['https://bsc-dataseed.binance.org'],
+              blockExplorerUrls: ['https://bscscan.com'],
+            },
+          ],
         });
       }
     }
-  }, []);
+  };
 
   const connectPhantom = async () => {
     setIsConnecting(true);
@@ -66,12 +138,8 @@ export function WalletConnection({ onConnect, onDisconnect }: WalletConnectionPr
         const response = await window.solana.connect();
         const address = response.publicKey.toString();
 
-        setWalletAddress(address);
-        setWalletType('phantom');
-
-        // Save to localStorage
-        localStorage.setItem('wallet-address', address);
-        localStorage.setItem('wallet-type', 'phantom');
+        setSolanaAddress(address);
+        localStorage.setItem('wallet-address-solana', address);
 
         onConnect?.(address, 'phantom');
       } else {
@@ -99,40 +167,9 @@ export function WalletConnection({ onConnect, onDisconnect }: WalletConnectionPr
         if (accounts.length > 0) {
           const address = accounts[0];
 
-          setWalletAddress(address);
-          setWalletType('metamask');
-
-          // Save to localStorage
-          localStorage.setItem('wallet-address', address);
-          localStorage.setItem('wallet-type', 'metamask');
-
-          // Switch to BSC network
-          try {
-            await window.ethereum.request({
-              method: 'wallet_switchEthereumChain',
-              params: [{ chainId: '0x38' }], // BSC Mainnet
-            });
-          } catch (switchError: any) {
-            // This error code indicates that the chain has not been added to MetaMask
-            if (switchError.code === 4902) {
-              await window.ethereum.request({
-                method: 'wallet_addEthereumChain',
-                params: [
-                  {
-                    chainId: '0x38',
-                    chainName: 'BNB Smart Chain',
-                    nativeCurrency: {
-                      name: 'BNB',
-                      symbol: 'BNB',
-                      decimals: 18,
-                    },
-                    rpcUrls: ['https://bsc-dataseed.binance.org'],
-                    blockExplorerUrls: ['https://bscscan.com'],
-                  },
-                ],
-              });
-            }
-          }
+          setEvmAddress(address);
+          localStorage.setItem('wallet-address-evm', address);
+          await switchToBsc();
 
           onConnect?.(address, 'metamask');
         }
@@ -148,65 +185,76 @@ export function WalletConnection({ onConnect, onDisconnect }: WalletConnectionPr
     }
   };
 
-  const handleDisconnect = () => {
-    setWalletAddress(null);
-    setWalletType(null);
-    localStorage.removeItem('wallet-address');
-    localStorage.removeItem('wallet-type');
-    onDisconnect?.();
-  };
-
-  if (walletAddress && walletType) {
-    return (
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge variant="outline" className="px-2 py-0.5">
-          <Wallet className="w-3 h-3 mr-2" />
-          {walletType === 'phantom' ? 'Phantom' : 'MetaMask'}
-        </Badge>
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {solanaAddress ? (
+        <>
+          <Badge variant="outline" className="px-2 py-0.5">
+            <Wallet className="w-3 h-3 mr-2" />
+            Phantom
+          </Badge>
+          <Button
+            variant="outline"
+            size="sm"
+            className="px-2 sm:px-3 text-xs sm:text-sm"
+            onClick={() => window.open(`https://solscan.io/account/${solanaAddress}`, '_blank')}
+          >
+            {truncateAddress(solanaAddress)}
+            <ExternalLink className="w-3 h-3 ml-2" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="px-2 sm:px-3 text-xs sm:text-sm"
+            onClick={disconnectPhantom}
+          >
+            断开
+          </Button>
+        </>
+      ) : (
         <Button
           variant="outline"
           size="sm"
           className="px-2 sm:px-3 text-xs sm:text-sm"
-          onClick={() => {
-            const explorerUrl =
-              walletType === 'phantom'
-                ? `https://solscan.io/account/${walletAddress}`
-                : `https://bscscan.com/address/${walletAddress}`;
-            window.open(explorerUrl, '_blank');
-          }}
+          onClick={connectPhantom}
+          disabled={isConnecting}
         >
-          {truncateAddress(walletAddress)}
-          <ExternalLink className="w-3 h-3 ml-2" />
+          <Wallet className="w-4 h-4 mr-2" />
+          Phantom
         </Button>
-        <Button variant="ghost" size="sm" className="px-2 sm:px-3 text-xs sm:text-sm" onClick={handleDisconnect}>
-          断开
-        </Button>
-      </div>
-    );
-  }
+      )}
 
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      <Button
-        variant="outline"
-        size="sm"
-        className="px-2 sm:px-3 text-xs sm:text-sm"
-        onClick={connectPhantom}
-        disabled={isConnecting}
-      >
-        <Wallet className="w-4 h-4 mr-2" />
-        Phantom
-      </Button>
-      <Button
-        variant="outline"
-        size="sm"
-        className="px-2 sm:px-3 text-xs sm:text-sm"
-        onClick={connectMetaMask}
-        disabled={isConnecting}
-      >
-        <Wallet className="w-4 h-4 mr-2" />
-        MetaMask
-      </Button>
+      {evmAddress ? (
+        <>
+          <Badge variant="outline" className="px-2 py-0.5">
+            <Wallet className="w-3 h-3 mr-2" />
+            MetaMask
+          </Badge>
+          <Button
+            variant="outline"
+            size="sm"
+            className="px-2 sm:px-3 text-xs sm:text-sm"
+            onClick={() => window.open(`https://bscscan.com/address/${evmAddress}`, '_blank')}
+          >
+            {truncateAddress(evmAddress)}
+            <ExternalLink className="w-3 h-3 ml-2" />
+          </Button>
+          <Button variant="ghost" size="sm" className="px-2 sm:px-3 text-xs sm:text-sm" onClick={disconnectMetaMask}>
+            断开
+          </Button>
+        </>
+      ) : (
+        <Button
+          variant="outline"
+          size="sm"
+          className="px-2 sm:px-3 text-xs sm:text-sm"
+          onClick={connectMetaMask}
+          disabled={isConnecting}
+        >
+          <Wallet className="w-4 h-4 mr-2" />
+          MetaMask
+        </Button>
+      )}
     </div>
   );
 }
