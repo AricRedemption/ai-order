@@ -1,9 +1,13 @@
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
+import { createZGComputeNetworkBroker } from '@0glabs/0g-serving-broker';
+import { ethers } from 'ethers';
 import type { AIConfig, AIProvider } from '@/types/ai';
+import { DEFAULT_MODELS, PRESET_PROVIDERS } from './constants';
 
 const anthropicClients = new Map<string, Anthropic>();
 const openaiClients = new Map<string, OpenAI>();
+let zgBroker: any = null;
 
 function getAnthropicClient(config: AIConfig): Anthropic {
   const cacheKey = config.apiKey;
@@ -37,10 +41,7 @@ function getOpenAIClient(config: AIConfig): OpenAI {
   return openaiClients.get(cacheKey)!;
 }
 
-const DEFAULT_MODELS: Record<AIProvider, string> = {
-  anthropic: 'claude-3-5-sonnet-20241022',
-  openai: 'gpt-4-turbo-preview',
-};
+// Moved DEFAULT_MODELS to constants.ts
 
 export interface AIMessage {
   role: 'user' | 'assistant' | 'system';
@@ -54,6 +55,8 @@ export async function sendAIMessage(
 ): Promise<string> {
   if (config.provider === 'anthropic') {
     return await sendAnthropicMessage(messages, systemPrompt, config);
+  } else if (config.provider === '0g-compute') {
+    return await send0GComputeMessage(messages, systemPrompt, config);
   } else {
     return await sendOpenAIMessage(messages, systemPrompt, config);
   }
@@ -116,6 +119,96 @@ async function sendOpenAIMessage(
   return response.choices[0]?.message?.content || '';
 }
 
+async function getZGBroker(privateKey: string) {
+  if (!zgBroker) {
+    const provider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_SOLANA_RPC || 'https://evm-storage-testnet.0g.ai'); // Fallback to 0G testnet
+    const signer = new ethers.Wallet(privateKey, provider);
+    zgBroker = await createZGComputeNetworkBroker(signer);
+  }
+  return zgBroker;
+}
+
+async function send0GComputeMessage(
+  messages: AIMessage[],
+  systemPrompt?: string,
+  config?: AIConfig
+): Promise<string> {
+  if (!config || !config.apiKey) {
+    throw new Error('0G Compute private key (apiKey) is required');
+  }
+
+  const broker = await getZGBroker(config.apiKey);
+  const serviceName = config.model || DEFAULT_MODELS['0g-compute'];
+  
+  // List services to find the provider
+  const services = await broker.inference.listServices();
+  const service = services.find((s: any) => s.name === serviceName);
+  
+  if (!service) {
+    throw new Error(`Service ${serviceName} not found on 0G Compute Network`);
+  }
+
+  const providerAddress = service.provider;
+  const serviceUrl = service.url;
+
+  // Initializing headers for OpenAI compatible API
+  const content = JSON.stringify({
+    messages: systemPrompt 
+      ? [{ role: 'system', content: systemPrompt }, ...messages]
+      : messages
+  });
+
+  const headers = await broker.inference.getRequestHeaders(
+    providerAddress,
+    serviceName,
+    content
+  );
+
+  const response = await fetch(`${serviceUrl}/v1/chat/completions`, {
+    method: 'POST',
+    headers: {
+      ...headers,
+      'Content-Type': 'application/json'
+    },
+    body: content
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(`0G Compute request failed: ${response.status} ${errorBody}`);
+  }
+
+  const result = await response.json();
+  
+  // Optional: Verify response
+  if (result.id) {
+    await broker.inference.processResponse(result.id);
+  }
+
+  return result.choices[0]?.message?.content || '';
+}
+
+export async function get0GBalance(privateKey: string, modelName?: string) {
+  const broker = await getZGBroker(privateKey);
+  const ledger = await broker.ledger.getLedger();
+  
+  let subAccountBalance = '0';
+  if (modelName) {
+    const services = await broker.inference.listServices();
+    const service = services.find((s: any) => s.name === modelName);
+    if (service) {
+      const [subAccount] = await broker.inference.getAccountWithDetail(service.provider);
+      subAccountBalance = ethers.formatEther(subAccount.balance);
+    }
+  }
+
+  return {
+    total: ethers.formatEther(ledger.totalBalance),
+    available: ethers.formatEther(ledger.availableBalance),
+    subAccount: subAccountBalance,
+  };
+}
+
 export async function* streamAIMessage(
   messages: AIMessage[],
   config: AIConfig,
@@ -123,6 +216,11 @@ export async function* streamAIMessage(
 ): AsyncGenerator<string> {
   if (config.provider === 'anthropic') {
     yield* streamAnthropicMessage(messages, systemPrompt, config);
+  } else if (config.provider === '0g-compute') {
+    // 0G Compute SDK might not support streaming via broker headers easily in this version
+    // Falling back to non-streaming for now or implementing if SDK allows
+    const result = await send0GComputeMessage(messages, systemPrompt, config);
+    yield result;
   } else {
     yield* streamOpenAIMessage(messages, systemPrompt, config);
   }
@@ -193,82 +291,4 @@ async function* streamOpenAIMessage(
   }
 }
 
-export const PRESET_PROVIDERS = [
-  {
-    id: 'anthropic-official',
-    name: 'Anthropic Claude (官方)',
-    provider: 'anthropic' as AIProvider,
-    baseURL: '',
-    defaultModel: 'claude-3-5-sonnet-20241022',
-  },
-  {
-    id: 'zhipu-anthropic',
-    name: '智谱 AI (Anthropic 协议)',
-    provider: 'anthropic' as AIProvider,
-    baseURL: 'https://open.bigmodel.cn/api/anthropic',
-    defaultModel: 'glm-4',
-  },
-  {
-    id: 'minimax-anthropic',
-    name: 'MiniMax (Anthropic 协议)',
-    provider: 'anthropic' as AIProvider,
-    baseURL: 'https://api.minimaxi.com/anthropic',
-    defaultModel: 'abab6.5s-chat',
-  },
-  {
-    id: 'deepseek-anthropic',
-    name: 'DeepSeek (Anthropic 协议)',
-    provider: 'anthropic' as AIProvider,
-    baseURL: 'https://api.deepseek.com/anthropic',
-    defaultModel: 'deepseek-chat',
-  },
-  {
-    id: 'moonshot-anthropic',
-    name: 'Moonshot (Kimi, Anthropic 协议)',
-    provider: 'anthropic' as AIProvider,
-    baseURL: 'https://api.moonshot.cn/anthropic',
-    defaultModel: 'moonshot-v1-8k',
-  },
-  {
-    id: 'openai-official',
-    name: 'OpenAI GPT (官方)',
-    provider: 'openai' as AIProvider,
-    baseURL: '',
-    defaultModel: 'gpt-4-turbo-preview',
-  },
-  {
-    id: 'zhipu-openai',
-    name: '智谱 AI (OpenAI 兼容)',
-    provider: 'openai' as AIProvider,
-    baseURL: 'https://open.bigmodel.cn/api/paas/v4',
-    defaultModel: 'glm-4',
-  },
-  {
-    id: 'minimax-openai',
-    name: 'MiniMax (OpenAI 兼容)',
-    provider: 'openai' as AIProvider,
-    baseURL: 'https://api.minimax.chat/v1',
-    defaultModel: 'abab6.5s-chat',
-  },
-  {
-    id: 'deepseek-openai',
-    name: 'DeepSeek (OpenAI 兼容)',
-    provider: 'openai' as AIProvider,
-    baseURL: 'https://api.deepseek.com',
-    defaultModel: 'deepseek-chat',
-  },
-  {
-    id: 'moonshot-openai',
-    name: 'Moonshot (Kimi, OpenAI 兼容)',
-    provider: 'openai' as AIProvider,
-    baseURL: 'https://api.moonshot.cn/v1',
-    defaultModel: 'moonshot-v1-8k',
-  },
-  {
-    id: 'custom',
-    name: '自定义',
-    provider: 'openai' as AIProvider,
-    baseURL: '',
-    defaultModel: '',
-  },
-];
+// Moved PRESET_PROVIDERS to constants.ts

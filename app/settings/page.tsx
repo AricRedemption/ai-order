@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Key, Save, Eye, EyeOff, Check, Settings2, Server } from 'lucide-react';
-import { PRESET_PROVIDERS } from '@/lib/ai/client';
+import { PRESET_PROVIDERS } from '@/lib/ai/constants';
 import type { AIConfig, AIProvider } from '@/types/ai';
 
 const STORAGE_KEY = 'ai-meme-trader-config';
@@ -20,6 +20,8 @@ export default function SettingsPage() {
   const [customBaseURL, setCustomBaseURL] = useState('');
   const [customModel, setCustomModel] = useState('');
   const [saved, setSaved] = useState(false);
+  const [zgBalance, setZgBalance] = useState<{ total: string; available: string; subAccount: string } | null>(null);
+  const [checkingBalance, setCheckingBalance] = useState(false);
 
   // Filter providers based on protocol, excluding the default 'custom' from presets
   // because we'll add a context-aware custom option
@@ -71,6 +73,28 @@ export default function SettingsPage() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
+  };
+
+  const check0GBalance = async () => {
+    if (!apiKey) return;
+    setCheckingBalance(true);
+    try {
+      const response = await fetch('/api/ai/0g/balance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ privateKey: apiKey, modelName: customModel }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        setZgBalance(data.balance);
+      } else {
+        alert('Check 0G balance failed: ' + data.error);
+      }
+    } catch (err) {
+      alert('Error: ' + (err instanceof Error ? err.message : String(err)));
+    } finally {
+      setCheckingBalance(false);
+    }
   };
 
   useEffect(() => {
@@ -199,6 +223,25 @@ export default function SettingsPage() {
                     <div className="text-xs text-muted-foreground mt-0.5">GPT, DeepSeek, etc.</div>
                   </div>
                 </button>
+
+                <button
+                  onClick={() => handleProtocolChange('0g-compute')}
+                  className={`
+                    relative p-4 text-left rounded-lg border-2 transition-all flex items-center gap-3
+                    ${protocol === '0g-compute'
+                      ? 'border-primary bg-primary/5'
+                      : 'border-border hover:border-primary/50'
+                    }
+                  `}
+                >
+                  <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${protocol === '0g-compute' ? 'border-primary' : 'border-muted-foreground'}`}>
+                    {protocol === '0g-compute' && <div className="w-2 h-2 rounded-full bg-primary" />}
+                  </div>
+                  <div>
+                    <div className="font-medium">0G Compute</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">Decentralized AI</div>
+                  </div>
+                </button>
               </div>
             </div>
 
@@ -289,10 +332,16 @@ export default function SettingsPage() {
 
               {/* API Key */}
               <div className="space-y-2">
-                <label className="text-sm font-medium">API Key</label>
+                <label className="text-sm font-medium">
+                  {protocol === '0g-compute' ? 'Private Key' : 'API Key'}
+                </label>
                 <Input
                   type={showKey ? 'text' : 'password'}
-                  placeholder={protocol === 'anthropic' ? 'sk-ant-...' : 'sk-...'}
+                  placeholder={
+                    protocol === 'anthropic' ? 'sk-ant-...' : 
+                    protocol === '0g-compute' ? 'Your EVM Private Key (0x...)' :
+                    'sk-...'
+                  }
                   value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
                 />
@@ -363,18 +412,46 @@ export default function SettingsPage() {
                     </a>
                   </p>
                 )}
-                {selectedProviderId.includes('moonshot') && (
-                  <p className="text-xs text-muted-foreground">
-                    Get your API key from{' '}
-                    <a
-                      href="https://platform.moonshot.cn/console/api-keys"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary hover:underline"
-                    >
-                      platform.moonshot.cn
-                    </a>
-                  </p>
+                {selectedProviderId === '0g-compute' && (
+                  <div className="space-y-4">
+                    <p className="text-xs text-muted-foreground">
+                      Learn more about 0G Compute from{' '}
+                      <a
+                        href="https://docs.0g.ai/developer-hub/building-on-0g/compute-network/inference"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline"
+                      >
+                        docs.0g.ai
+                      </a>
+                    </p>
+                    <div className="flex flex-col gap-2">
+                       <Button 
+                         variant="outline" 
+                         size="sm" 
+                         onClick={check0GBalance}
+                         disabled={checkingBalance || !apiKey}
+                       >
+                         {checkingBalance ? 'Checking...' : 'Check 0G Balance'}
+                       </Button>
+                       {zgBalance && (
+                         <div className="p-3 bg-primary/5 rounded border border-primary/20 text-xs space-y-1">
+                           <div className="flex justify-between">
+                             <span>Total Ledger:</span>
+                             <span className="font-mono">{zgBalance.total} OG</span>
+                           </div>
+                           <div className="flex justify-between">
+                             <span>Available:</span>
+                             <span className="font-mono">{zgBalance.available} OG</span>
+                           </div>
+                           <div className="flex justify-between font-bold">
+                             <span>Sub-Account ({customModel}):</span>
+                             <span className="font-mono">{zgBalance.subAccount} OG</span>
+                           </div>
+                         </div>
+                       )}
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
@@ -388,8 +465,8 @@ export default function SettingsPage() {
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Protocol:</span>
-                  <Badge variant={protocol === 'anthropic' ? 'default' : 'secondary'}>
-                    {protocol === 'anthropic' ? 'Anthropic' : 'OpenAI Compatible'}
+                  <Badge variant={protocol === 'anthropic' ? 'default' : protocol === '0g-compute' ? 'outline' : 'secondary'}>
+                    {protocol === 'anthropic' ? 'Anthropic' : protocol === '0g-compute' ? '0G Compute' : 'OpenAI Compatible'}
                   </Badge>
                 </div>
                 <div className="flex items-center justify-between text-sm">
