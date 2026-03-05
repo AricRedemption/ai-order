@@ -6,7 +6,9 @@
     "dev": "next dev -p 3737",
     "build": "next build",
     "start": "next start -p 3737",
-    "lint": "next lint"
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run lint && npm run typecheck"
   },
   "dependencies": {
     "@0glabs/0g-serving-broker": "^0.6.6",
