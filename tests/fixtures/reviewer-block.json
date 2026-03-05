@@ -1,0 +1,9 @@
+{
+  "schemaVersion": "reviewer_result.v1",
+  "projectId": "ai-meme",
+  "decision": "block",
+  "severity": "high",
+  "findings": [{"severity":"high","title":"Missing regression test"}],
+  "evidence": ["test gap"],
+  "summary": "Block merge"
+}
