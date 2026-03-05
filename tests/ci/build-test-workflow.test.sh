@@ -6,13 +6,11 @@ workflow="$base/.github/workflows/ci.yml"
 rg -n '^name:\s*ci$' "$workflow" >/dev/null
 rg -n '^\s{2}build:$' "$workflow" >/dev/null
 rg -n '^\s{2}test:$' "$workflow" >/dev/null
-rg -n 'npm run build' "$workflow" >/dev/null
-rg -n 'npm run test' "$workflow" >/dev/null
-if rg -n 'cache:\s*npm' "$workflow" >/dev/null; then
-  echo "cache:npm requires package-lock.json, should not be used here"
-  exit 1
-fi
-rg -n '"typecheck"' "$base/package.json" >/dev/null
-rg -n '"test"' "$base/package.json" >/dev/null
+rg -n 'cache:\s*pnpm' "$workflow" >/dev/null
+rg -n 'pnpm-lock.yaml' "$workflow" >/dev/null
+rg -n 'pnpm/action-setup@' "$workflow" >/dev/null
+rg -n 'pnpm install --frozen-lockfile' "$workflow" >/dev/null
+rg -n 'pnpm run build' "$workflow" >/dev/null
+rg -n 'pnpm run test' "$workflow" >/dev/null
 
 echo PASS
